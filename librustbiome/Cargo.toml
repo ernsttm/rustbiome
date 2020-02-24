@@ -9,3 +9,4 @@ include = ["src/**/*"]
 
 [dependencies]
 phf = { version = "0.8", features = ["macros"] }
+packed_simd = "0.3.3"
