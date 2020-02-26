@@ -2,6 +2,7 @@ use std::cmp::{max, min, Eq, PartialEq};
 use std::fmt::{Display, Error, Formatter};
 
 use crate::buffer::SIMDBuffer;
+use crate::genetic_code::{GeneticCode, StandardCode};
 use crate::nucleotide::{unwrap_nucleotide_name_get, unwrap_nucleotide_value_get, Nucleotide};
 
 enum Position {
@@ -33,7 +34,7 @@ fn get_nucleotide_value(nucleotides: u8, position: Position) -> u8 {
     }
 }
 
-struct Codon {
+pub struct Codon {
     nucleotides: u8,
 }
 
@@ -101,12 +102,21 @@ fn populate_value(input_chars: &[char]) -> u8 {
     value
 }
 
-struct CodonBuffer {
+struct CodonBuffer<T: GeneticCode> {
     buffer: SIMDBuffer,
     count: usize,
+    protein_translator: T,
 }
 
-impl CodonBuffer {
+impl<T: GeneticCode> CodonBuffer<T> {
+    pub fn new(buffer: SIMDBuffer, count: usize) -> Self {
+            CodonBuffer {
+                buffer: buffer,
+                count: count,
+                protein_translator: T::new(),
+            }
+    }
+
     pub fn to_codons(&self) -> Vec<Codon> {
         let buffer_view = self.buffer.as_slice();
         let mut codons: Vec<Codon> = Vec::new();
@@ -129,7 +139,7 @@ impl CodonBuffer {
     }
 }
 
-impl From<&[char]> for CodonBuffer {
+impl<T: GeneticCode> From<&[char]> for CodonBuffer<T> {
     fn from(input: &[char]) -> Self {
         // Require the input slice is divisible by three and thus can be split into codons.
         if input.len() % 3 != 0 {
@@ -146,16 +156,11 @@ impl From<&[char]> for CodonBuffer {
             storage_buffer.push(populate_value(&input[index..]));
         }
 
-        CodonBuffer {
-            buffer: SIMDBuffer {
-                buffer: storage_buffer,
-            },
-            count: input.len(),
-        }
+        CodonBuffer::new(SIMDBuffer {buffer: storage_buffer}, input.len())
     }
 }
 
-impl Display for CodonBuffer {
+impl<T: GeneticCode> Display for CodonBuffer<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         // Translate the codon buffer into Codons, and map them into their string representations.
         let codon_output: Vec<String> = self
@@ -173,6 +178,7 @@ impl Display for CodonBuffer {
 mod tests {
     use crate::codon::{Codon, CodonBuffer};
     use crate::nucleotide::Nucleotide;
+    use crate::genetic_code::StandardCode;
 
     #[test]
     fn verify_codon() {
@@ -196,7 +202,7 @@ mod tests {
     #[test]
     fn test_codon_buffer_simple() {
         let input_buffer = ['A', 'U', 'G', 'G', 'A', 'C'];
-        let codon_buffer = CodonBuffer::from(&input_buffer[..]);
+        let codon_buffer: CodonBuffer<StandardCode> = CodonBuffer::from(&input_buffer[..]);
 
         assert_eq!("[AUG, GAC]", format!("{}", codon_buffer));
     }
